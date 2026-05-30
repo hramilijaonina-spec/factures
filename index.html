@@ -9,7 +9,6 @@
   <meta name="apple-mobile-web-app-title" content="Factures">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon.png">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
   <title>Factures</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -61,8 +60,9 @@
     .empty-state { text-align: center; padding: 40px 20px; color: #999; font-size: 14px; }
     .footer { position: fixed; bottom: 0; left: 0; right: 0; text-align: center; padding: 8px; font-size: 12px; color: #999; background: #f5f5f5; border-top: 1px solid #eee; z-index: 100; }
     .crop-container { position: fixed; inset: 0; background: #000; z-index: 500; display: flex; flex-direction: column; }
-    .crop-area { flex: 1; overflow: hidden; position: relative; }
-    .crop-area img { max-width: 100%; }
+    .crop-hint { color: rgba(255,255,255,0.6); font-size: 13px; text-align: center; padding: 10px; background: #000; }
+    .crop-area { flex: 1; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+    .crop-canvas { max-width: 100%; max-height: 100%; }
     .crop-buttons { display: flex; gap: 10px; padding: 16px; background: #1a1a2e; }
     .crop-btn { flex: 1; padding: 14px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; }
     .crop-btn-cancel { background: #444; color: white; }
@@ -78,12 +78,13 @@
 </div>
 
 <div class="crop-container hidden" id="crop-container">
-  <div class="crop-area">
-    <img id="crop-image" src="" alt="Crop">
+  <div class="crop-hint">Vérifiez la photo puis confirmez</div>
+  <div class="crop-area" id="crop-area">
+    <canvas id="crop-canvas" class="crop-canvas"></canvas>
   </div>
   <div class="crop-buttons">
     <button class="crop-btn crop-btn-cancel" onclick="cancelCrop()">✕ Annuler</button>
-    <button class="crop-btn crop-btn-ok" onclick="confirmCrop()">✓ Confirmer</button>
+    <button class="crop-btn crop-btn-ok" onclick="confirmCrop()">✓ Utiliser cette photo</button>
   </div>
 </div>
 
@@ -159,12 +160,10 @@
 
 <div class="footer">Developed by Herizo Bashy</div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
-
 <script>
   var base64Data = null;
   var mimeType = null;
-  var cropper = null;
+  var originalImage = null;
   var SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxJ8b6KmTdzQtxsLiwfk-00qa5YpqMuSgsZmAJmQ90dn_ne-6MrDhVwS-AleyWYBeF4FQ/exec";
 
   window.addEventListener("load", function() {
@@ -183,36 +182,39 @@
   document.getElementById("file-input").addEventListener("change", function(e) {
     var file = e.target.files[0];
     if (!file) return;
-    mimeType = file.type;
+    mimeType = "image/jpeg";
     var reader = new FileReader();
     reader.onload = function(ev) {
-      var cropImage = document.getElementById("crop-image");
-      cropImage.src = ev.target.result;
-      document.getElementById("crop-container").classList.remove("hidden");
-      if (cropper) { cropper.destroy(); cropper = null; }
-      setTimeout(function() {
-        cropper = new Cropper(cropImage, {
-          viewMode: 1,
-          autoCropArea: 0.9,
-          movable: true,
-          zoomable: true,
-          rotatable: false,
-          scalable: false
-        });
-      }, 100);
+      var img = new Image();
+      img.onload = function() {
+        originalImage = img;
+        var canvas = document.getElementById("crop-canvas");
+        var area = document.getElementById("crop-area");
+        var maxW = area.clientWidth || window.innerWidth;
+        var maxH = (area.clientHeight || window.innerHeight) - 150;
+        var scale = Math.min(maxW / img.width, maxH / img.height, 1);
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+        document.getElementById("crop-container").classList.remove("hidden");
+      };
+      img.src = ev.target.result;
     };
     reader.readAsDataURL(file);
   });
 
   function cancelCrop() {
-    if (cropper) { cropper.destroy(); cropper = null; }
     document.getElementById("crop-container").classList.add("hidden");
     document.getElementById("file-input").value = "";
+    originalImage = null;
   }
 
   function confirmCrop() {
-    var canvas = cropper.getCroppedCanvas({ maxWidth: 1600, maxHeight: 1600 });
-    var croppedDataUrl = canvas.toDataURL("image/jpeg", 0.85);
+    var finalCanvas = document.createElement("canvas");
+    finalCanvas.width = originalImage.width;
+    finalCanvas.height = originalImage.height;
+    finalCanvas.getContext("2d").drawImage(originalImage, 0, 0);
+    var croppedDataUrl = finalCanvas.toDataURL("image/jpeg", 0.85);
     base64Data = croppedDataUrl.split(",")[1];
     document.getElementById("preview").src = croppedDataUrl;
     document.getElementById("upload-placeholder").classList.add("hidden");
@@ -220,8 +222,8 @@
     document.getElementById("upload-zone").classList.add("has-image");
     document.getElementById("btn-analyze").disabled = false;
     document.getElementById("result-scan").classList.add("hidden");
-    if (cropper) { cropper.destroy(); cropper = null; }
     document.getElementById("crop-container").classList.add("hidden");
+    originalImage = null;
     hideStatus("scan");
   }
 
