@@ -21,9 +21,9 @@
     .header { background: #1a1a2e; color: white; padding: 16px 20px; display: flex; align-items: center; gap: 10px; }
     .header h1 { font-size: 18px; font-weight: 600; }
     .tabs { display: flex; background: white; border-bottom: 1px solid #eee; }
-    .tab { flex: 1; padding: 14px; text-align: center; font-size: 15px; font-weight: 600; cursor: pointer; color: #999; border-bottom: 3px solid transparent; }
+    .tab { flex: 1; padding: 12px 4px; text-align: center; font-size: 13px; font-weight: 600; cursor: pointer; color: #999; border-bottom: 3px solid transparent; }
     .tab.active { color: #1a1a2e; border-bottom-color: #1a1a2e; }
-    .content { padding: 20px; max-width: 500px; margin: 0 auto; }
+    .content { padding: 20px; max-width: 500px; margin: 0 auto; padding-bottom: 50px; }
     .panel { display: none; }
     .panel.active { display: block; }
     .upload-zone { background: white; border: 2px dashed #ddd; border-radius: 16px; padding: 32px 20px; text-align: center; cursor: pointer; margin-bottom: 16px; }
@@ -36,6 +36,7 @@
     .btn-analyze:disabled { background: #999; cursor: not-allowed; }
     .btn-save { background: #4CAF50; color: white; }
     .btn-reset { background: #f0f0f0; color: #333; }
+    .btn-refresh { background: #1a1a2e; color: white; padding: 12px; border-radius: 10px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; width: 100%; margin-bottom: 16px; }
     .card { background: white; border-radius: 16px; padding: 20px; margin-bottom: 16px; }
     .card h3 { font-size: 14px; color: #999; margin-bottom: 16px; text-transform: uppercase; }
     .field { margin-bottom: 14px; }
@@ -48,6 +49,16 @@
     .status.error { background: #ffebee; color: #c62828; }
     .hidden { display: none; }
     .hint { font-size: 12px; color: #999; margin-top: 6px; font-style: italic; }
+    .facture-item { background: white; border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+    .facture-info { flex: 1; }
+    .facture-societe { font-size: 15px; font-weight: 600; color: #1a1a2e; }
+    .facture-date { font-size: 12px; color: #999; margin-top: 2px; }
+    .facture-numero { font-size: 12px; color: #bbb; margin-top: 2px; }
+    .facture-right { text-align: right; }
+    .facture-montant { font-size: 15px; font-weight: 600; color: #2e7d32; }
+    .facture-lien { font-size: 12px; color: #1565c0; margin-top: 4px; text-decoration: none; display: block; }
+    .empty-state { text-align: center; padding: 40px 20px; color: #999; font-size: 14px; }
+    .footer { position: fixed; bottom: 0; left: 0; right: 0; text-align: center; padding: 8px; font-size: 12px; color: #999; background: #f5f5f5; border-top: 1px solid #eee; z-index: 100; }
   </style>
 </head>
 <body>
@@ -66,11 +77,13 @@
 
 <div class="tabs">
   <div class="tab active" id="tab-scan" onclick="switchTab('scan')">📷 Scanner</div>
-  <div class="tab" id="tab-manual" onclick="switchTab('manual')">✏️ Vocal / Texte</div>
+  <div class="tab" id="tab-manual" onclick="switchTab('manual')">✏️ Texte</div>
+  <div class="tab" id="tab-historique" onclick="switchTab('historique'); loadHistorique();">📋 Historique</div>
 </div>
 
 <div class="content">
 
+  <!-- SCANNER -->
   <div class="panel active" id="panel-scan">
     <br>
     <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
@@ -96,6 +109,7 @@
     </div>
   </div>
 
+  <!-- TEXTE -->
   <div class="panel" id="panel-manual">
     <br>
     <div class="card">
@@ -118,7 +132,17 @@
     </div>
   </div>
 
+  <!-- HISTORIQUE -->
+  <div class="panel" id="panel-historique">
+    <br>
+    <button class="btn-refresh" onclick="loadHistorique()">🔄 Rafraîchir</button>
+    <div id="status-historique" class="status hidden"></div>
+    <div id="liste-historique"></div>
+  </div>
+
 </div>
+
+<div class="footer">Developed by Herizo Bashy</div>
 
 <script>
   var base64Data = null;
@@ -136,6 +160,43 @@
     document.querySelectorAll(".panel").forEach(function(p) { p.classList.remove("active"); });
     document.getElementById("panel-" + tab).classList.add("active");
     document.getElementById("tab-" + tab).classList.add("active");
+  }
+
+  async function loadHistorique() {
+    showStatus("historique", "loading", "Chargement...");
+    document.getElementById("liste-historique").innerHTML = "";
+    try {
+      var res = await fetch(SCRIPT_URL, {
+        method: "POST",
+        body: JSON.stringify({ action: "getHistorique" })
+      });
+      var data = await res.json();
+      hideStatus("historique");
+      if (!data || data.length === 0) {
+        document.getElementById("liste-historique").innerHTML = '<div class="empty-state">Aucune facture enregistree</div>';
+        return;
+      }
+      var html = "";
+      data.forEach(function(f) {
+        var montantFormate = f.montant ? Number(f.montant).toLocaleString("fr-FR") + " Ar" : "-";
+        var lienHtml = (f.lien && f.lien !== "" && f.lien !== "undefined") ? '<a class="facture-lien" href="' + f.lien + '" target="_blank">📎 Voir la facture</a>' : '';
+        var numeroHtml = (f.numero && f.numero !== "" && f.numero !== "undefined") ? '<div class="facture-numero">N° ' + f.numero + '</div>' : '';
+        html += '<div class="facture-item">'
+          + '<div class="facture-info">'
+          + '<div class="facture-societe">' + f.societe + '</div>'
+          + '<div class="facture-date">' + f.date + '</div>'
+          + numeroHtml
+          + lienHtml
+          + '</div>'
+          + '<div class="facture-right">'
+          + '<div class="facture-montant">' + montantFormate + '</div>'
+          + '</div>'
+          + '</div>';
+      });
+      document.getElementById("liste-historique").innerHTML = html;
+    } catch(err) {
+      showStatus("historique", "error", "Erreur chargement: " + err.toString());
+    }
   }
 
   document.getElementById("file-input").addEventListener("change", function(e) {
@@ -323,8 +384,6 @@
     document.getElementById("status-" + panel).classList.add("hidden");
   }
 </script>
-<div style="position:fixed; bottom:0; left:0; right:0; text-align:center; padding: 10px; font-size: 12px; color: #999; background: #f5f5f5; border-top: 1px solid #eee;">
-  Developed by Herizo Bashy
-</div>
+
 </body>
 </html>
