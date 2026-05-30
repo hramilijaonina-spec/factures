@@ -9,6 +9,7 @@
   <meta name="apple-mobile-web-app-title" content="Factures">
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon.png">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
   <title>Factures</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -59,6 +60,13 @@
     .facture-lien { font-size: 12px; color: #1565c0; margin-top: 4px; text-decoration: none; display: block; }
     .empty-state { text-align: center; padding: 40px 20px; color: #999; font-size: 14px; }
     .footer { position: fixed; bottom: 0; left: 0; right: 0; text-align: center; padding: 8px; font-size: 12px; color: #999; background: #f5f5f5; border-top: 1px solid #eee; z-index: 100; }
+    .crop-container { position: fixed; inset: 0; background: #000; z-index: 500; display: flex; flex-direction: column; }
+    .crop-area { flex: 1; overflow: hidden; position: relative; }
+    .crop-area img { max-width: 100%; }
+    .crop-buttons { display: flex; gap: 10px; padding: 16px; background: #1a1a2e; }
+    .crop-btn { flex: 1; padding: 14px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; }
+    .crop-btn-cancel { background: #444; color: white; }
+    .crop-btn-ok { background: #4CAF50; color: white; }
   </style>
 </head>
 <body>
@@ -67,6 +75,16 @@
   <div class="splash-icon">🧾</div>
   <h1>Factures</h1>
   <p>Chargement...</p>
+</div>
+
+<div class="crop-container hidden" id="crop-container">
+  <div class="crop-area">
+    <img id="crop-image" src="" alt="Crop">
+  </div>
+  <div class="crop-buttons">
+    <button class="crop-btn crop-btn-cancel" onclick="cancelCrop()">✕ Annuler</button>
+    <button class="crop-btn crop-btn-ok" onclick="confirmCrop()">✓ Confirmer</button>
+  </div>
 </div>
 
 <div class="header">
@@ -83,7 +101,6 @@
 
 <div class="content">
 
-  <!-- SCANNER -->
   <div class="panel active" id="panel-scan">
     <br>
     <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
@@ -109,7 +126,6 @@
     </div>
   </div>
 
-  <!-- TEXTE -->
   <div class="panel" id="panel-manual">
     <br>
     <div class="card">
@@ -132,7 +148,6 @@
     </div>
   </div>
 
-  <!-- HISTORIQUE -->
   <div class="panel" id="panel-historique">
     <br>
     <button class="btn-refresh" onclick="loadHistorique()">🔄 Rafraîchir</button>
@@ -144,9 +159,12 @@
 
 <div class="footer">Developed by Herizo Bashy</div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+
 <script>
   var base64Data = null;
   var mimeType = null;
+  var cropper = null;
   var SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxJ8b6KmTdzQtxsLiwfk-00qa5YpqMuSgsZmAJmQ90dn_ne-6MrDhVwS-AleyWYBeF4FQ/exec";
 
   window.addEventListener("load", function() {
@@ -160,6 +178,51 @@
     document.querySelectorAll(".panel").forEach(function(p) { p.classList.remove("active"); });
     document.getElementById("panel-" + tab).classList.add("active");
     document.getElementById("tab-" + tab).classList.add("active");
+  }
+
+  document.getElementById("file-input").addEventListener("change", function(e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    mimeType = file.type;
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      var cropImage = document.getElementById("crop-image");
+      cropImage.src = ev.target.result;
+      document.getElementById("crop-container").classList.remove("hidden");
+      if (cropper) { cropper.destroy(); cropper = null; }
+      setTimeout(function() {
+        cropper = new Cropper(cropImage, {
+          viewMode: 1,
+          autoCropArea: 0.9,
+          movable: true,
+          zoomable: true,
+          rotatable: false,
+          scalable: false
+        });
+      }, 100);
+    };
+    reader.readAsDataURL(file);
+  });
+
+  function cancelCrop() {
+    if (cropper) { cropper.destroy(); cropper = null; }
+    document.getElementById("crop-container").classList.add("hidden");
+    document.getElementById("file-input").value = "";
+  }
+
+  function confirmCrop() {
+    var canvas = cropper.getCroppedCanvas({ maxWidth: 1600, maxHeight: 1600 });
+    var croppedDataUrl = canvas.toDataURL("image/jpeg", 0.85);
+    base64Data = croppedDataUrl.split(",")[1];
+    document.getElementById("preview").src = croppedDataUrl;
+    document.getElementById("upload-placeholder").classList.add("hidden");
+    document.getElementById("img-container").classList.remove("hidden");
+    document.getElementById("upload-zone").classList.add("has-image");
+    document.getElementById("btn-analyze").disabled = false;
+    document.getElementById("result-scan").classList.add("hidden");
+    if (cropper) { cropper.destroy(); cropper = null; }
+    document.getElementById("crop-container").classList.add("hidden");
+    hideStatus("scan");
   }
 
   async function loadHistorique() {
@@ -199,32 +262,13 @@
     }
   }
 
-  document.getElementById("file-input").addEventListener("change", function(e) {
-    var file = e.target.files[0];
-    if (!file) return;
-    mimeType = file.type;
-    var reader = new FileReader();
-    reader.onload = function(ev) {
-      base64Data = ev.target.result.split(",")[1];
-      document.getElementById("preview").src = ev.target.result;
-      document.getElementById("upload-placeholder").classList.add("hidden");
-      document.getElementById("img-container").classList.remove("hidden");
-      document.getElementById("upload-zone").classList.add("has-image");
-      document.getElementById("btn-analyze").disabled = false;
-      document.getElementById("result-scan").classList.add("hidden");
-      hideStatus("scan");
-    };
-    reader.readAsDataURL(file);
-  });
-
   async function analyze() {
     showStatus("scan", "loading", "Analyse en cours...");
     document.getElementById("btn-analyze").disabled = true;
     try {
-      var compressed = await compressImage(base64Data, mimeType);
       var res = await fetch(SCRIPT_URL, {
         method: "POST",
-        body: JSON.stringify({ action: "analyze", base64: compressed, mimeType: mimeType })
+        body: JSON.stringify({ action: "analyze", base64: base64Data, mimeType: "image/jpeg" })
       });
       var data = await res.json();
       if (data.error) {
@@ -287,12 +331,11 @@
       } else if (data.status === "ok") {
         var rowIndex = data.row;
         showStatus("scan", "loading", "Sauvegarde de l'image...");
-        var compressed = await compressImage(base64Data, mimeType);
         await fetch(SCRIPT_URL, {
           method: "POST",
           body: JSON.stringify({
             action: "saveImage",
-            base64: compressed,
+            base64: base64Data,
             mimeType: "image/jpeg",
             row: rowIndex,
             societe: document.getElementById("s-societe").value,
@@ -334,25 +377,6 @@
     } catch(err) {
       showStatus("manual", "error", "Erreur: " + err.toString());
     }
-  }
-
-  async function compressImage(base64, mime) {
-    return new Promise(function(resolve) {
-      var img = new Image();
-      img.onload = function() {
-        var canvas = document.createElement("canvas");
-        var max = 1600;
-        var w = img.width, h = img.height;
-        if (w > max || h > max) {
-          if (w > h) { h = Math.round(h * max / w); w = max; }
-          else { w = Math.round(w * max / h); h = max; }
-        }
-        canvas.width = w; canvas.height = h;
-        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL("image/jpeg", 0.85).split(",")[1]);
-      };
-      img.src = "data:" + mime + ";base64," + base64;
-    });
   }
 
   function resetScan() {
