@@ -59,15 +59,6 @@
     .facture-lien { font-size: 12px; color: #1565c0; margin-top: 4px; text-decoration: none; display: block; }
     .empty-state { text-align: center; padding: 40px 20px; color: #999; font-size: 14px; }
     .footer { position: fixed; bottom: 0; left: 0; right: 0; text-align: center; padding: 8px; font-size: 12px; color: #999; background: #f5f5f5; border-top: 1px solid #eee; z-index: 100; }
-    .crop-container { position: fixed; inset: 0; background: #000; z-index: 500; display: none; flex-direction: column; }
-    .crop-container.visible { display: flex; }
-    .crop-hint { color: rgba(255,255,255,0.7); font-size: 13px; text-align: center; padding: 12px; background: #111; }
-    .crop-area { flex: 1; overflow: hidden; display: flex; align-items: center; justify-content: center; background: #000; }
-    .crop-area img { max-width: 100%; max-height: 100%; object-fit: contain; }
-    .crop-buttons { display: flex; gap: 10px; padding: 16px; background: #1a1a2e; }
-    .crop-btn { flex: 1; padding: 14px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; }
-    .crop-btn-cancel { background: #444; color: white; }
-    .crop-btn-ok { background: #4CAF50; color: white; }
   </style>
 </head>
 <body>
@@ -76,17 +67,6 @@
   <div class="splash-icon">🧾</div>
   <h1>Factures</h1>
   <p>Chargement...</p>
-</div>
-
-<div class="crop-container" id="crop-container">
-  <div class="crop-hint">Verifiez la photo puis confirmez</div>
-  <div class="crop-area">
-    <img id="crop-img-preview" src="" alt="Preview">
-  </div>
-  <div class="crop-buttons">
-    <button class="crop-btn crop-btn-cancel" onclick="cancelCrop()">✕ Annuler</button>
-    <button class="crop-btn crop-btn-ok" onclick="confirmCrop()">✓ Utiliser cette photo</button>
-  </div>
 </div>
 
 <div class="header">
@@ -164,7 +144,6 @@
 <script>
   var base64Data = null;
   var mimeType = null;
-  var originalDataUrl = null;
   var SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxJ8b6KmTdzQtxsLiwfk-00qa5YpqMuSgsZmAJmQ90dn_ne-6MrDhVwS-AleyWYBeF4FQ/exec";
 
   window.addEventListener("load", function() {
@@ -186,33 +165,17 @@
     mimeType = "image/jpeg";
     var reader = new FileReader();
     reader.onload = function(ev) {
-      originalDataUrl = ev.target.result;
-      document.getElementById("crop-img-preview").src = ev.target.result;
-      document.getElementById("crop-container").classList.add("visible");
+      base64Data = ev.target.result.split(",")[1];
+      document.getElementById("preview").src = ev.target.result;
+      document.getElementById("upload-placeholder").classList.add("hidden");
+      document.getElementById("img-container").classList.remove("hidden");
+      document.getElementById("upload-zone").classList.add("has-image");
+      document.getElementById("btn-analyze").disabled = false;
+      document.getElementById("result-scan").classList.add("hidden");
+      hideStatus("scan");
     };
     reader.readAsDataURL(file);
   });
-
-  function cancelCrop() {
-    document.getElementById("crop-container").classList.remove("visible");
-    document.getElementById("crop-img-preview").src = "";
-    document.getElementById("file-input").value = "";
-    originalDataUrl = null;
-  }
-
-  function confirmCrop() {
-    base64Data = originalDataUrl.split(",")[1];
-    document.getElementById("preview").src = originalDataUrl;
-    document.getElementById("upload-placeholder").classList.add("hidden");
-    document.getElementById("img-container").classList.remove("hidden");
-    document.getElementById("upload-zone").classList.add("has-image");
-    document.getElementById("btn-analyze").disabled = false;
-    document.getElementById("result-scan").classList.add("hidden");
-    document.getElementById("crop-container").classList.remove("visible");
-    document.getElementById("crop-img-preview").src = "";
-    originalDataUrl = null;
-    hideStatus("scan");
-  }
 
   async function loadHistorique() {
     showStatus("historique", "loading", "Chargement...");
